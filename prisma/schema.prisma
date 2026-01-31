@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String        @id @default(uuid())
+  email          String        @unique
+  authProviderId String        @unique
+  password       String        @default("password")
+  name           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  transactions   Transaction[]
+  bankItems      BankItem[]
+}
+
+model BankItem {
+  id               String    @id @default(uuid())
+  userId           String
+  plaidAccessToken String
+  plaidItemId      String    @unique
+  institutionName  String?
+  status           String    @default("active")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts         Account[]
+}
+
+model Account {
+  id             String        @id @default(uuid())
+  bankItemId     String
+  plaidAccountId String        @unique
+  name           String
+  mask           String?
+  type           String
+  subtype        String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  bankItem       BankItem      @relation(fields: [bankItemId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+}
+
+model SpendCategory {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  icon         String?
+  color        String?
+  transactions Transaction[]
+}
+
+model Transaction {
+  id                 String         @id @default(uuid())
+  amount             Decimal
+  description        String
+  date               DateTime
+  type               String         @default("EXPENSE") // "INCOME" or "EXPENSE"
+  userId             String
+  categoryId         String?
+  accountId          String?
+  plaidTransactionId String?        @unique
+  pending            Boolean        @default(false)
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category           SpendCategory? @relation(fields: [categoryId], references: [id])
+  account            Account?       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // New Plaid Metadata Fields
+  merchantName       String?
+  logoUrl            String?
+  website            String?
+  plaidCategory      String?        // JSON string array from Plaid
+  paymentChannel     String?
+  location           String?        // JSON string
+  authorizedDate     DateTime?
+  isoCurrencyCode    String?
+  personalFinanceCategory String? // JSON string: { primary, detailed, confidence_level }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Insight {
+  id        String   @id @default(uuid())
+  userId    String
+  month     Int
+  year      Int
+  content   String
+  type      String   @default("MONTHLY_ROAST")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month, year, type])
+}
