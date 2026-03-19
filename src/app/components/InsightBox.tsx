@@ -8,6 +8,8 @@ interface InsightBoxProps {
     selectedDate: Date;
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
 export default function InsightBox({ userId, selectedDate }: InsightBoxProps) {
     const [insight, setInsight] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -23,7 +25,7 @@ export default function InsightBox({ userId, selectedDate }: InsightBoxProps) {
             setLoading(true);
             setError("");
             try {
-                const res = await fetch(`/api/insights?userId=${userId}&month=${month}&year=${year}`);
+                const res = await fetch(`${API_BASE}/api/insights?userId=${userId}&month=${month}&year=${year}`);
                 if (!res.ok) {
                     const data = await res.json();
                     throw new Error(data.error || "Failed to fetch insight");

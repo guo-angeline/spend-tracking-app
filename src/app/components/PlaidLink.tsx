@@ -8,6 +8,8 @@ interface PlaidLinkProps {
     onSuccess?: () => void;
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
 const PlaidLink: React.FC<PlaidLinkProps> = ({ userId, onSuccess }) => {
     const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -18,7 +20,7 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ userId, onSuccess }) => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('/api/plaid/create-link-token', {
+            const response = await fetch(`${API_BASE}/api/plaid/create-link-token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId }),
@@ -52,7 +54,7 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ userId, onSuccess }) => {
             setLoading(true);
             try {
                 // Exchange public token for access token
-                await fetch('/api/plaid/exchange-public-token', {
+                await fetch(`${API_BASE}/api/plaid/exchange-public-token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

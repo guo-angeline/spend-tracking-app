@@ -11,7 +11,7 @@ import ProfileDropdown from "./components/ProfileDropdown";
 import CategoryDistributionChart from "./components/CategoryDistributionChart";
 import InsightBox from "./components/InsightBox";
 
-
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function Home() {
   const [userId, setUserId] = useState("");
@@ -28,7 +28,7 @@ export default function Home() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch("/api/categories");
+      const res = await fetch(`${API_BASE}/api/categories`);
       if (!res.ok) throw new Error("Failed to fetch categories");
       const data = await res.json();
       setCategories(data);
@@ -50,7 +50,7 @@ export default function Home() {
     setTransactions(updatedTransactions);
 
     try {
-      const res = await fetch(`/api/transactions/${transactionId}`, {
+      const res = await fetch(`${API_BASE}/api/transactions/${transactionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categoryId: newCategoryId })
@@ -73,7 +73,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, password }),
@@ -97,7 +97,7 @@ export default function Home() {
 
   const handleSaveTransaction = async (transactionData: any) => {
     try {
-      const res = await fetch("/api/transactions/manual", {
+      const res = await fetch(`${API_BASE}/api/transactions/manual`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,7 +133,7 @@ export default function Home() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/user/delete", {
+      const res = await fetch(`${API_BASE}/api/user/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id }),
@@ -158,7 +158,7 @@ export default function Home() {
 
   const fetchTransactions = async (dbUserId: string) => {
     try {
-      const res = await fetch(`/api/transactions?userId=${dbUserId}`);
+      const res = await fetch(`${API_BASE}/api/transactions?userId=${dbUserId}`);
       if (!res.ok) throw new Error("Failed to fetch transactions");
       const data = await res.json();
       setTransactions(data);

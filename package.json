@@ -8,10 +8,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:mobile": "BUILD_MODE=mobile next build && npx cap sync ios",
+    "cap:open": "npx cap open ios",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/ios": "^8.2.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^17.2.3",
     "lucide-react": "^0.562.0",
