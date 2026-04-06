@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { Haptics, NotificationType, ImpactStyle } from '@capacitor/haptics';
 import Modal from './Modal';
 
 interface TransactionModalProps {
@@ -51,6 +52,7 @@ export default function TransactionModal({ isOpen, onClose, onSave, categories }
                 type,
                 categoryId: categoryId || null,
             });
+            Haptics.notification({ type: NotificationType.Success }).catch(() => {});
             onClose();
             // Reset form
             setDescription('');
@@ -74,7 +76,10 @@ export default function TransactionModal({ isOpen, onClose, onSave, categories }
                             <button
                                 key={t}
                                 type="button"
-                                onClick={() => setType(t)}
+                                onClick={() => {
+                                    Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+                                    setType(t);
+                                }}
                                 className={`flex-1 px-4 py-2 text-sm font-medium border first:rounded-l-md last:rounded-r-md focus:z-10 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${type === t
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'

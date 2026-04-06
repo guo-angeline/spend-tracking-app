@@ -47,5 +47,17 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>chase</string>
+		<string>citi</string>
+		<string>bankofamerica</string>
+		<string>wellsfargo</string>
+		<string>capitalone</string>
+		<string>usbank</string>
+		<string>pnc</string>
+		<string>tdbank</string>
+		<string>fidelity</string>
+	</array>
 </dict>
 </plist>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { usePlaidLink, PlaidLinkOnSuccess, PlaidLinkOptions } from 'react-plaid-link';
+import { Haptics, NotificationType, ImpactStyle } from '@capacitor/haptics';
 
 interface PlaidLinkProps {
     userId: string;
@@ -66,6 +67,7 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ userId, onSuccess }) => {
 
                 // Trigger an initial sync
                 // Note: For now we'll just signal success to the parent
+                Haptics.notification({ type: NotificationType.Success }).catch(() => {});
                 if (onSuccess) onSuccess();
             } catch (error) {
                 console.error('Error exchanging public token:', error);
@@ -86,7 +88,10 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ userId, onSuccess }) => {
     return (
         <div className="flex flex-col items-end gap-1">
             <button
-                onClick={() => open()}
+                onClick={() => {
+                    Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+                    open();
+                }}
                 disabled={!ready || loading}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${!ready || loading
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed'

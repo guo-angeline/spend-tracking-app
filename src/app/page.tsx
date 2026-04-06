@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Preferences } from "@capacitor/preferences";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import SummaryCard from "./components/SummaryCard";
 import CategoryList from "./components/CategoryList";
 import PlaidLink from "./components/PlaidLink";
@@ -23,7 +25,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
-
+  useEffect(() => {
+    const loadSession = async () => {
+      const { value } = await Preferences.get({ key: 'app_user' });
+      if (value) {
+        try {
+          const userData = JSON.parse(value);
+          setUser(userData);
+          fetchTransactions(userData.id);
+          fetchCategories();
+        } catch (e) {
+          console.error("Failed to parse stored session", e);
+        }
+      }
+    };
+    loadSession();
+  }, []);
 
 
   const fetchCategories = async () => {
@@ -59,6 +76,7 @@ export default function Home() {
       if (!res.ok) {
         throw new Error('Failed to update category');
       }
+      Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
     } catch (err) {
       console.error("Error updating category:", err);
       // Revert on error
@@ -85,6 +103,7 @@ export default function Home() {
       }
 
       const userData = await res.json();
+      await Preferences.set({ key: 'app_user', value: JSON.stringify(userData) });
       setUser(userData);
       fetchTransactions(userData.id);
       fetchCategories();
@@ -145,6 +164,7 @@ export default function Home() {
       }
 
       alert("Your account and all associated data have been permanently deleted.");
+      await Preferences.remove({ key: 'app_user' });
       setUser(null);
       setTransactions([]);
       setUserId("");
@@ -320,7 +340,8 @@ export default function Home() {
               <div className="h-8 w-px bg-gray-200 mx-1"></div>
               <ProfileDropdown
                 userName={user.name}
-                onLogout={() => {
+                onLogout={async () => {
+                  await Preferences.remove({ key: 'app_user' });
                   setUser(null);
                   setTransactions([]);
                   setUserId("");

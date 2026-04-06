@@ -6,9 +6,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
-    "build:mobile": "BUILD_MODE=mobile next build && npx cap sync ios",
+    "build:mobile": "mv src/app/api src/api_backup || true; BUILD_MODE=mobile next build; mv src/api_backup src/app/api || true; npx cap sync ios",
     "cap:open": "npx cap open ios",
     "start": "next start",
     "lint": "eslint"
@@ -16,7 +17,9 @@
   "dependencies": {
     "@capacitor/cli": "^8.2.0",
     "@capacitor/core": "^8.2.0",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.2.0",
+    "@capacitor/preferences": "^8.0.1",
     "@prisma/client": "^5.22.0",
     "dotenv": "^17.2.3",
     "lucide-react": "^0.562.0",
@@ -29,6 +32,7 @@
     "recharts": "^3.6.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
