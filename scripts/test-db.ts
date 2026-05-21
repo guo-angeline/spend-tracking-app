@@ -9,6 +9,7 @@ async function main() {
         data: {
             email: `test-${Date.now()}@example.com`,
             authProviderId: `auth-test-${Date.now()}`,
+            password: 'placeholder-hashed-password',
             name: 'Test User',
             transactions: {
                 create: {

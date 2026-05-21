@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -44,13 +45,14 @@ async function main() {
     }
 
     // Create or Update Demo User (Non-destructive)
+    const hashedPassword = await bcrypt.hash('password', 12)
     const demoUser = await prisma.user.upsert({
         where: { email: demoUserEmail },
         update: {}, // Don't change anything if user exists
         create: {
             email: demoUserEmail,
             authProviderId: 'demo-user-123',
-            password: 'password',
+            password: hashedPassword,
             name: 'Demo User',
             transactions: {
                 create: [

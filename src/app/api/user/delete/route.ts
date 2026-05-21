@@ -1,28 +1,17 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyToken, unauthorized } from '@/lib/auth';
 
-export async function POST(request: Request) {
-    try {
-        const { userId } = await request.json();
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await verifyToken(request);
+    if (!auth) return unauthorized();
 
-        if (!userId) {
-            return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-        }
+    await prisma.user.delete({ where: { id: auth.userId } });
 
-        // Deleting the user will trigger cascading deletes for:
-        // - BankItems (and their plaid access tokens)
-        // - Accounts
-        // - Transactions
-        await prisma.user.delete({
-            where: { id: userId },
-        });
-
-        return NextResponse.json({ success: true, message: 'Account and all associated data deleted successfully' });
-    } catch (error: any) {
-        console.error('Error deleting user:', error.message);
-        return NextResponse.json(
-            { error: error.message || 'Failed to delete account' },
-            { status: 500 }
-        );
-    }
+    return NextResponse.json({ success: true, message: 'Account and all associated data deleted' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
+  }
 }

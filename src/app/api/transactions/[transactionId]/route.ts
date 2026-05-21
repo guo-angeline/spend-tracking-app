@@ -1,34 +1,48 @@
-
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { verifyToken, unauthorized } from '@/lib/auth';
+
+const schema = z.object({
+  categoryId: z.string().uuid(),
+});
 
 export async function PATCH(
-    request: Request,
-    { params }: { params: Promise<{ transactionId: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
-    try {
-        const { transactionId } = await params;
-        const { categoryId } = await request.json();
+  try {
+    const auth = await verifyToken(request);
+    if (!auth) return unauthorized();
 
-        if (!transactionId) {
-            return NextResponse.json({ error: 'Transaction ID is required' }, { status: 400 });
-        }
-
-        if (!categoryId) {
-            return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
-        }
-
-        const updatedTransaction = await prisma.transaction.update({
-            where: { id: transactionId },
-            data: { categoryId },
-            include: {
-                category: true,
-            },
-        });
-
-        return NextResponse.json(updatedTransaction);
-    } catch (error) {
-        console.error('Error updating transaction category:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { transactionId } = await params;
+    const body = await request.json();
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid category ID' }, { status: 400 });
     }
+
+    // Verify ownership before updating
+    const existing = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      select: { userId: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
+    if (existing.userId !== auth.userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const updated = await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { categoryId: parsed.data.categoryId },
+      include: { category: true },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Error updating transaction category:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

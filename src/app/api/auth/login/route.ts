@@ -1,31 +1,40 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import { z } from 'zod';
+import prisma from '@/lib/prisma';
+import { signToken } from '@/lib/auth';
+import { loginLimiter, checkRateLimit, getClientIp } from '@/lib/ratelimit';
 
-const prisma = new PrismaClient();
+const schema = z.object({
+  userId: z.string().min(1),
+  password: z.string().min(1),
+});
 
-export async function POST(request: Request) {
-    try {
-        const body = await request.json();
-        const { userId, password } = body;
+export async function POST(request: NextRequest) {
+  try {
+    const limited = await checkRateLimit(loginLimiter, getClientIp(request));
+    if (limited) return limited;
 
-        if (!userId || !password) {
-            return NextResponse.json({ error: 'User ID and Password are required' }, { status: 400 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { authProviderId: userId },
-        });
-
-        console.log('Login attempt:', { userId, providedPassword: password });
-        console.log('Found user:', user ? { id: user.id, authId: user.authProviderId, hasPassword: !!user.password, passwordMatch: user.password === password } : 'null');
-
-        if (!user || user.password !== password) {
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-        }
-
-        return NextResponse.json(user);
-    } catch (error) {
-        console.error('Error logging in:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const body = await request.json();
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
+    const { userId, password } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { authProviderId: userId } });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    const token = await signToken(user.id);
+    return NextResponse.json({
+      token,
+      user: { id: user.id, email: user.email, name: user.name, authProviderId: user.authProviderId, monthlyBudget: user.monthlyBudget },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

@@ -1,146 +1,115 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import prisma from '@/lib/prisma';
+import Anthropic from '@anthropic-ai/sdk';
+import { verifyToken, unauthorized } from '@/lib/auth';
+import { insightLimiter, checkRateLimit } from '@/lib/ratelimit';
 
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import OpenAI from "openai";
+const querySchema = z.object({
+  month: z.coerce.number().int().min(0).max(11),
+  year: z.coerce.number().int().min(2020).max(2030),
+});
 
-// Initialize Prisma Client
-const prisma = new PrismaClient();
+export async function GET(request: NextRequest) {
+  try {
+    const auth = await verifyToken(request);
+    if (!auth) return unauthorized();
 
-export async function GET(request: Request) {
-    try {
-        // Initialize OpenAI inside the handler to safely catch missing key errors
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            console.error("OPENAI_API_KEY is missing in environment variables.");
-            return NextResponse.json({ error: "Server Error: OPENAI_API_KEY is missing. Please add it to your .env file and restart the server." }, { status: 500 });
-        }
+    const limited = await checkRateLimit(insightLimiter, auth.userId);
+    if (limited) return limited;
 
-        const openai = new OpenAI({ apiKey });
-
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get("userId");
-
-        // Default to current month/year if not specified
-        const now = new Date();
-        const month = parseInt(searchParams.get("month") || (now.getUTCMonth()).toString()); // 0-indexed
-        const year = parseInt(searchParams.get("year") || now.getUTCFullYear().toString());
-
-        if (!userId) {
-            return NextResponse.json({ error: "User ID required" }, { status: 400 });
-        }
-
-        // 1. Check for cached insight
-        const existingInsight = await prisma.insight.findFirst({
-            where: {
-                userId,
-                month,
-                year,
-                type: "MONTHLY_ROAST" // Default type
-            }
-        });
-
-        if (existingInsight) {
-            return NextResponse.json({ content: existingInsight.content, cached: true });
-        }
-
-        // 2. Generate new insight if not found
-        // Fetch monthly stats
-        // Construct start/end dates for the month
-        const startDate = new Date(Date.UTC(year, month, 1));
-        const endDate = new Date(Date.UTC(year, month + 1, 0));
-
-        const transactions = await prisma.transaction.findMany({
-            where: {
-                userId,
-                date: {
-                    gte: startDate,
-                    lte: endDate
-                },
-                type: "EXPENSE"
-            },
-            include: {
-                category: true
-            }
-        });
-
-        const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
-
-        // Group by Category
-        const categoryTotals: Record<string, number> = {};
-        transactions.forEach(t => {
-            const catName = t.category?.name || "Uncategorized";
-            categoryTotals[catName] = (categoryTotals[catName] || 0) + Number(t.amount);
-        });
-
-        // Top Categories
-        const topCategories = Object.entries(categoryTotals)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 3)
-            .map(([name, amount]) => `${name}: $${amount.toFixed(0)}`)
-            .join(", ");
-
-        // Group by Merchant (Top spending spots)
-        const merchantTotals: Record<string, number> = {};
-        transactions.forEach(t => {
-            const merch = t.merchantName || t.description;
-            merchantTotals[merch] = (merchantTotals[merch] || 0) + Number(t.amount);
-        });
-
-        const topMerchants = Object.entries(merchantTotals)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 3)
-            .map(([name, amount]) => `${name}: $${amount.toFixed(0)}`)
-            .join(", ");
-
-        // Construct Prompt
-        // Construct Prompt
-        const prompt = `
-      You are a blunt, no-nonsense financial analyst with a dry sense of humor. 
-      The user has spent $${totalSpent.toFixed(2)} this month.
-      Top categories: ${topCategories}.
-      Top merchants: ${topMerchants}.
-      
-      Write a VERY concise insight (2 sentences max).
-      1. Point out exactly WHERE they are wasting money (be specific based on the data).
-      2. Throw a playful jab or harsh truth about it.
-      
-      Do NOT be flowery. Do NOT use hashtags. Do NOT use emojis. 
-      Focus on the numbers and the behavior.
-    `;
-
-        if (transactions.length === 0) {
-            return NextResponse.json({ content: "You haven't spent anything yet. Are you even living, or just hibernating to save money? 🐻", cached: false });
-        }
-
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                { role: "system", content: "You are a sarcastic financial assistant." },
-                { role: "user", content: prompt }
-            ],
-            max_tokens: 150,
-        });
-
-        const generatedText = completion.choices[0].message.content || "Spending looks... interesting.";
-
-        // 3. Save to DB
-        await prisma.insight.create({
-            data: {
-                userId,
-                month,
-                year,
-                content: generatedText,
-                type: "MONTHLY_ROAST"
-            }
-        });
-
-        return NextResponse.json({ content: generatedText, cached: false });
-
-    } catch (error: any) {
-        console.error("Error generating insight:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to generate insight" },
-            { status: 500 }
-        );
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Anthropic not configured' }, { status: 500 });
     }
+    const anthropic = new Anthropic({ apiKey });
+
+    const { searchParams } = new URL(request.url);
+    const now = new Date();
+    const parsed = querySchema.safeParse({
+      month: searchParams.get('month') ?? now.getUTCMonth(),
+      year: searchParams.get('year') ?? now.getUTCFullYear(),
+    });
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid month or year' }, { status: 400 });
+    }
+    const { month, year } = parsed.data;
+
+    const existing = await prisma.insight.findFirst({
+      where: { userId: auth.userId, month, year, type: 'MONTHLY_ROAST' },
+    });
+    if (existing) {
+      return NextResponse.json({ content: existing.content, cached: true });
+    }
+
+    const startDate = new Date(Date.UTC(year, month, 1));
+    const endDate = new Date(Date.UTC(year, month + 1, 0));
+
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: auth.userId, date: { gte: startDate, lte: endDate }, type: 'EXPENSE' },
+      include: { category: true },
+    });
+
+    if (transactions.length === 0) {
+      return NextResponse.json({
+        content: "You haven't spent anything yet. Are you even living, or just hibernating to save money?",
+        cached: false,
+      });
+    }
+
+    const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const categoryTotals: Record<string, number> = {};
+    transactions.forEach((t) => {
+      const cat = t.category?.name ?? 'Uncategorized';
+      categoryTotals[cat] = (categoryTotals[cat] ?? 0) + Number(t.amount);
+    });
+    const topCategories = Object.entries(categoryTotals)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([name, amount]) => `${name}: $${amount.toFixed(0)}`)
+      .join(', ');
+
+    const merchantTotals: Record<string, number> = {};
+    transactions.forEach((t) => {
+      const merch = t.merchantName ?? t.description;
+      merchantTotals[merch] = (merchantTotals[merch] ?? 0) + Number(t.amount);
+    });
+    const topMerchants = Object.entries(merchantTotals)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([name, amount]) => `${name}: $${amount.toFixed(0)}`)
+      .join(', ');
+
+    const prompt = `You are a blunt, no-nonsense financial analyst with a dry sense of humor.
+The user has spent $${totalSpent.toFixed(2)} this month.
+Top categories: ${topCategories}.
+Top merchants: ${topMerchants}.
+
+Write a VERY concise insight (2 sentences max).
+1. Point out exactly WHERE they are wasting money (be specific based on the data).
+2. Throw a playful jab or harsh truth about it.
+
+Do NOT be flowery. Do NOT use hashtags. Do NOT use emojis.
+Focus on the numbers and the behavior.`;
+
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 150,
+      system: 'You are a sarcastic financial assistant.',
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const firstBlock = message.content[0];
+    const generatedText = firstBlock.type === 'text' ? firstBlock.text : 'Spending looks... interesting.';
+
+    await prisma.insight.create({
+      data: { userId: auth.userId, month, year, content: generatedText, type: 'MONTHLY_ROAST' },
+    });
+
+    return NextResponse.json({ content: generatedText, cached: false });
+  } catch (error) {
+    console.error('Error generating insight:', error);
+    return NextResponse.json({ error: 'Failed to generate insight' }, { status: 500 });
+  }
 }
