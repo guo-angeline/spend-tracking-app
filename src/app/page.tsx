@@ -31,6 +31,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [oauthRedirectUri, setOauthRedirectUri] = useState<string | null>(null);
 
   const authHeaders = useCallback(
     (tok?: string) => ({
@@ -91,6 +92,15 @@ export default function Home() {
       fetchCategories();
     }
   }, [token, user, fetchTransactions, fetchCategories]);
+
+  useEffect(() => {
+    if (!token) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('oauth_state_id')) {
+      setOauthRedirectUri(window.location.href);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [token]);
 
   const handleCategoryChange = async (transactionId: string, newCategoryId: string) => {
     const previousTransactions = [...transactions];
@@ -270,7 +280,11 @@ export default function Home() {
           <header className="mb-8 flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-900">Finance Dashboard</h1>
             <div className="flex items-center gap-4">
-              <PlaidLink token={token} onSuccess={() => fetchTransactions(token)} />
+              <PlaidLink
+                token={token}
+                onSuccess={() => { setOauthRedirectUri(null); fetchTransactions(token); }}
+                receivedRedirectUri={oauthRedirectUri ?? undefined}
+              />
               <button
                 onClick={() => setIsTransactionModalOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-lg font-medium shadow-sm transition-all text-sm"

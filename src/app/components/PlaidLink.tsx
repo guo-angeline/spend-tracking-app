@@ -7,11 +7,12 @@ import { Haptics, NotificationType, ImpactStyle } from "@capacitor/haptics";
 interface PlaidLinkProps {
   token: string;
   onSuccess?: () => void;
+  receivedRedirectUri?: string;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess }) => {
+const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess, receivedRedirectUri }) => {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +69,16 @@ const PlaidLink: React.FC<PlaidLinkProps> = ({ token, onSuccess }) => {
     [token, onSuccess]
   );
 
-  const config: PlaidLinkOptions = { token: linkToken, onSuccess: handleOnSuccess };
+  const config: PlaidLinkOptions = {
+    token: linkToken,
+    onSuccess: handleOnSuccess,
+    ...(receivedRedirectUri ? { receivedRedirectUri } : {}),
+  };
   const { open, ready } = usePlaidLink(config);
+
+  useEffect(() => {
+    if (receivedRedirectUri && ready) open();
+  }, [receivedRedirectUri, ready, open]);
 
   return (
     <div className="flex flex-col items-end gap-1">
