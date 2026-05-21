@@ -1,104 +1,75 @@
-# Finance Coach — AI-Powered Spend Tracker
+# Piggy Bank
 
-Link your bank. Auto-sync transactions. Get monthly AI roasts of your spending habits.
+A personal finance tracking app with automatic bank sync via Plaid, AI spending insights, and iOS support via Capacitor.
 
-Finance Coach connects to real bank accounts via Plaid, categorizes every transaction, tracks your budget, and uses OpenAI to deliver brutally honest monthly financial insights.
+**Live:** https://project-7r7p0.vercel.app
 
 ## Features
 
-- **Bank linking** — Connect accounts via Plaid Link (sandbox + production)
-- **Auto-sync** — Real-time transaction sync via Plaid `transactionsSync` API
-- **Encrypted tokens** — AES-256-GCM encryption for Plaid access tokens at rest
-- **Smart refund netting** — Refunds are matched to original expenses and netted out
-- **Category mapping** — Plaid `personal_finance_category` mapped to internal categories
-- **Monthly overview** — Budget tracking ($4,500/month default), category distribution charts, income vs. spending bar charts
-- **AI Monthly Roast** — OpenAI-powered blunt financial insights, cached in DB
-- **Manual entry** — Add transactions by hand when needed
-- **User auth** — Simple email/password authentication
-- **Account deletion** — Full data removal on request
-- **iOS app** — Capacitor-wrapped mobile build
+- Bank account connection via Plaid Link (transactions sync automatically)
+- Automatic transaction categorization
+- Monthly spending insights powered by Claude (Anthropic)
+- Manual transaction entry
+- Configurable monthly budget
+- iOS app via Capacitor
 
-## Tech Stack
+## Stack
 
-- **Framework:** Next.js 16 + React 19
-- **Database:** Prisma + SQLite
-- **Banking:** Plaid API
-- **AI:** OpenAI API
-- **Charts:** Recharts
-- **Styling:** Tailwind CSS 4
-- **Mobile:** Capacitor (iOS)
-- **Icons:** Lucide
+- **Framework:** Next.js 16 (App Router)
+- **Database:** PostgreSQL via Supabase + Prisma ORM
+- **Auth:** JWT (jose) + bcrypt passwords
+- **Bank data:** Plaid API
+- **AI insights:** Anthropic Claude (claude-haiku-4-5)
+- **Rate limiting:** Upstash Redis
+- **Error tracking:** Sentry
+- **Deployment:** Vercel
 
-## Getting Started
+## Local Development
 
-### Prerequisites
+1. Clone the repo and install dependencies:
+   ```bash
+   npm install
+   ```
 
-- Node.js 18+
-- Plaid account (sandbox works for testing)
-- OpenAI API key
+2. Copy `.env.example` to `.env` and fill in all values:
+   ```bash
+   cp .env.example .env
+   ```
 
-### Environment Variables
+3. Run the database migration:
+   ```bash
+   npx prisma migrate deploy
+   npx prisma db seed
+   ```
 
-```env
-DATABASE_URL=                   # Prisma SQLite URL (e.g., file:./dev.db)
-PLAID_CLIENT_ID=               # Plaid client ID
-PLAID_SECRET=                  # Plaid secret
-PLAID_ENV=                     # sandbox | development | production
-OPENAI_API_KEY=                # OpenAI API key
-ENCRYPTION_KEY=                # 32-byte hex key for AES-256-GCM token encryption
-```
+4. Start the dev server:
+   ```bash
+   npm run dev
+   ```
 
-### Install & Run
+## Environment Variables
+
+See `.env.example` for the full list. Required:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Supabase pooler connection string (Transaction mode, port 6543) |
+| `DIRECT_URL` | Supabase direct connection string (for migrations) |
+| `JWT_SECRET` | 32-byte random hex string (`openssl rand -hex 32`) |
+| `ENCRYPTION_KEY` | 32-byte random hex string for encrypting Plaid tokens |
+| `PLAID_CLIENT_ID` | From Plaid dashboard |
+| `PLAID_SECRET` | From Plaid dashboard |
+| `PLAID_ENV` | `sandbox`, `development`, or `production` |
+| `ANTHROPIC_API_KEY` | From console.anthropic.com |
+| `UPSTASH_REDIS_REST_URL` | From Upstash console (optional, enables rate limiting) |
+| `UPSTASH_REDIS_REST_TOKEN` | From Upstash console (optional, enables rate limiting) |
+
+## Deployment
+
+Deployed on Vercel. Set all env vars in Vercel project settings, then:
 
 ```bash
-npm install
-npx prisma migrate dev
-npm run dev
+vercel --prod
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-### iOS Build
-
-```bash
-npm run build:mobile    # Static export + Capacitor sync
-npm run cap:open        # Open in Xcode
-```
-
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── page.tsx                          # Main dashboard
-│   ├── components/                       # 21 components
-│   │   ├── PlaidLink.tsx                 # Bank account linking
-│   │   ├── InsightBox.tsx               # AI roast display
-│   │   ├── TransactionModal.tsx         # Add/edit transactions
-│   │   ├── MonthlyFinancialsChart.tsx   # Income vs. spending
-│   │   ├── CategoryDistributionChart.tsx # Category breakdown
-│   │   ├── SummaryCard.tsx              # Budget overview cards
-│   │   ├── MonthSelector.tsx            # Month navigation
-│   │   └── ProfileDropdown.tsx          # User menu
-│   └── api/                              # 11 API routes
-│       ├── auth/                         # Login / register
-│       ├── transactions/                 # CRUD + sync
-│       ├── categories/                   # Category mapping
-│       ├── plaid/                        # Exchange, sync, webhook
-│       ├── insights/                     # AI roast generation
-│       └── user/                         # Account deletion
-├── lib/
-│   ├── plaid.ts                         # Plaid client config
-│   ├── prisma.ts                        # Prisma client singleton
-│   ├── encryption.ts                    # AES-256-GCM helpers
-│   ├── plaid-sync-service.ts            # Transaction sync logic
-│   └── category-mapping.ts             # Plaid → internal categories
-├── prisma/
-│   └── schema.prisma                    # 6 models: User, BankItem, Account, SpendCategory, Transaction, Insight
-├── scripts/                              # 30+ debug / cleanup utilities
-└── ios/                                  # Capacitor iOS project
-```
-
-## License
-
-MIT
+> Use the Supabase **Transaction pooler** URL (port 6543, `?pgbouncer=true`) for `DATABASE_URL` on Vercel. Direct connections do not work in serverless environments.
